@@ -579,6 +579,11 @@ html[data-theme="dark"] .theme-toggle{background:rgba(230,199,102,.14);}
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
 }
+#gLightbox{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:24px}
+#gLightbox.open{display:flex}
+#gLightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+#gLightbox .lb-close{position:absolute;top:16px;right:20px;width:44px;height:44px;border:0;border-radius:50%;background:#fff;color:#111;font-size:28px;line-height:1;cursor:pointer}
+.m-item.m-broken{display:none}
 </style>
 </head>
 <body>
@@ -1086,7 +1091,32 @@ const galleryItems = [
   {img:"catalogue-signet-octagon-ring.png", cat:"Finished Work", label:"Finished Work"},
   {img:"catalogue-pendant-k.png", cat:"Jewellery", label:"Finished Jewellery"}
 ];
-const galleryCats = ["All","Jewellery","Casting","Moulding","Workshop","Craftsmanship","Finished Work"];
+/* Workshop photos uploaded to the repo root (original WhatsApp filenames).
+   Each is tried as-is (URL-encoded) first, then in the dotted form GitHub
+   uses when it rewrites spaces/brackets on upload. */
+const workshopPhotoFiles = [
+  "WhatsApp Image 2026-11-22 at 2.08.59 PM (1).jpeg",
+  "WhatsApp Image 2026-11-22 at 2.08.59 PM (2).jpeg",
+  "WhatsApp Image 2026-11-22 at 2.08.59 PM (3).jpeg",
+  "WhatsApp Image 2026-11-22 at 2.08.59 PM.jpeg",
+  "WhatsApp Image 2026-11-22 at 2.09.00 PM (1).jpeg",
+  "WhatsApp Image 2026-11-22 at 2.09.00 PM (2).jpeg",
+  "WhatsApp Image 2026-11-22 at 2.09.00 PM.jpeg",
+  "WhatsApp Image 2026-11-22 at 2.09.01 PM (1).jpeg",
+  "WhatsApp Image 2026-11-22 at 2.09.01 PM (2).jpeg",
+  "WhatsApp Image 2026-11-22 at 2.09.01 PM.jpeg",
+  "WhatsApp Image 2026-11-22 at 2.09.03 PM.jpeg"
+];
+workshopPhotoFiles.forEach((f,i)=>{
+  galleryItems.push({
+    img: encodeURI(f),
+    alts: [encodeURI(f.replace(/[ ()]+/g,'.').replace(/\.{2,}/g,'.'))],
+    cat: "Workshop Photos",
+    label: "Workshop Photo " + (i+1),
+    extra: true
+  });
+});
+const galleryCats = ["All","Jewellery","Casting","Moulding","Workshop","Craftsmanship","Finished Work","Workshop Photos"];
 
 /* ================================================================
    TESTIMONIALS — editable placeholder data, no invented names/claims
@@ -1249,14 +1279,51 @@ function renderGallery(){
   filtered.forEach(g=>{
     const item = document.createElement('div');
     item.className = 'm-item';
-    item.innerHTML = `<img src="${g.img}" alt="${g.label}" loading="lazy"><div class="m-overlay">${g.label}</div>`;
+    const img = document.createElement('img');
+    img.alt = g.label;
+    img.loading = 'lazy';
+    const tries = [g.img].concat(g.alts || []);
+    let t = 0;
+    img.addEventListener('error', ()=>{
+      t++;
+      if(t < tries.length){ img.src = tries[t]; }
+      else { item.classList.add('m-broken'); }
+    });
+    img.src = tries[0];
+    const ov = document.createElement('div');
+    ov.className = 'm-overlay';
+    ov.textContent = g.label;
+    item.appendChild(img);
+    item.appendChild(ov);
     item.addEventListener('click', ()=>{
       const idx = catalogue.findIndex(c=>c.image===g.img);
-      openModal(idx >= 0 ? idx : 0);
+      if(idx >= 0){ openModal(idx); }
+      else { openLightbox(img.currentSrc || img.src, g.label); }
     });
     masonryEl.appendChild(item);
   });
 }
+/* Simple lightbox for gallery photos that are not catalogue designs */
+function openLightbox(src, label){
+  let lb = document.getElementById('gLightbox');
+  if(!lb){
+    lb = document.createElement('div');
+    lb.id = 'gLightbox';
+    lb.innerHTML = '<button type="button" class="lb-close" aria-label="Close photo">&times;</button><img alt="">';
+    lb.addEventListener('click', e=>{ if(e.target !== lb.querySelector('img')) closeLightbox(); });
+    document.body.appendChild(lb);
+  }
+  const im = lb.querySelector('img');
+  im.src = src; im.alt = label;
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox(){
+  const lb = document.getElementById('gLightbox');
+  if(lb){ lb.classList.remove('open'); }
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeLightbox(); });
 renderGallery();
 
 /* ================================================================
